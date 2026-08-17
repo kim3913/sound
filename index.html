@@ -311,7 +311,7 @@ footer{
 const DATA_FILE = "S-DoT_소음_분석용_축약.csv";
 const LOCATION_FILE = "S-DoT_센서위치_축약.csv";
 
-// 영문 지역 카테고리를 한국어로 자동 변환하는 매핑 테이블
+// 영문 지역 카테고리 한글 변환 매핑
 const AREA_MAP = {
   "main_street": "주요도로",
   "roads_and_parks": "도로·공원",
@@ -319,13 +319,33 @@ const AREA_MAP = {
   "residential_areas": "주거지역",
   "commercial_areas": "상업지역",
   "industrial_areas": "공업지역",
-  "traditional_markets": "전통시장"
+  "traditional_markets": "전통시장",
+  "facility": "시설물",
+  "culture_and_tourism": "문화관광"
+};
+
+// 영문 자치구 코드/이름 한글 변환 매핑
+const DISTRICT_MAP = {
+  "Gangnam-gu": "강남구", "Gangdong-gu": "강동구", "Gangbuk-gu": "강북구",
+  "Gangseo-gu": "강서구", "Gwanak-gu": "관악구", "Gwangjin-gu": "광진구",
+  "Guro-gu": "구로구", "Geumcheon-gu": "금천구", "Nowon-gu": "노원구",
+  "Dobong-gu": "도봉구", "Dongdaemun-gu": "동대문구", "Dongjak-gu": "동작구",
+  "Mapo-gu": "마포구", "Seodaemun-gu": "서대문구", "Seocho-gu": "서초구",
+  "Seongdong-gu": "성동구", "Seongbuk-gu": "성북구", "Songpa-gu": "송파구",
+  "Yangcheon-gu": "양천구", "Yeongdeungpo-gu": "영등포구", "Yongsan-gu": "용산구",
+  "Eunpyeong-gu": "은평구", "Jongno-gu": "종로구", "Jung-gu": "중구", "Jungnang-gu": "중랑구"
 };
 
 function translateArea(areaStr) {
   if (!areaStr) return "기타";
   const trimmed = String(areaStr).trim();
   return AREA_MAP[trimmed] || trimmed;
+}
+
+function translateDistrict(districtStr) {
+  if (!districtStr) return "기타";
+  const trimmed = String(districtStr).trim();
+  return DISTRICT_MAP[trimmed] || trimmed;
 }
 
 let data = [];
@@ -413,8 +433,8 @@ function fillSelect(id, values){
 }
 
 function setupFilters(){
-  const areas = [...new Set(data.map(d => d.지역))].sort();
-  const districts = [...new Set(data.map(d => d.자치구))].sort();
+  const areas = [...new Set(data.map(d => d.지역))].filter(Boolean).sort();
+  const districts = [...new Set(data.map(d => d.자치구))].filter(Boolean).sort();
 
   fillSelect("area", areas);
   fillSelect("district", districts);
@@ -716,10 +736,11 @@ async function start(){
 
     const rawData = await loadCSV(DATA_FILE);
     
-    // 데이터 로드 시 영문 지역명을 한국어로 한 번에 매핑 변환
+    // 데이터 로드 시 지역유형과 자치구 명칭을 한글로 완전하게 변환
     data = rawData.map(r => ({
       ...r,
-      지역: translateArea(r.지역)
+      지역: translateArea(r.지역),
+      자치구: translateDistrict(r.자치구)
     }));
 
     document.getElementById("loading").textContent =
