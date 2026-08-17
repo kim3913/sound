@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>서울은 언제 가장 시끄러울까? | S-DoT 소음 분석 대시보드</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { text-align: center; color: #1e293b; }
+        .filter-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; gap: 15px; justify-content: center; }
+        select, button { padding: 10px 15px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .stat-card h3 { margin: 0 0 10px 0; font-size: 14px; color: #64748b; }
+        .stat-card .value { font-size: 24px; font-weight: bold; color: #2563eb; }
+        .chart-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔊 서울시 생활소음 통계 분석 대시보드</h1>
+        
+        <div class="filter-card">
+            <select id="districtFilter">
+                <option value="ALL">전체 자치구</option>
+            </select>
+            <select id="timeFilter">
+                <option value="ALL">전체 시간대</option>
+                <option value="MORNING">아침 (06시~12시)</option>
+                <option value="AFTERNOON">낮 (12시~18시)</option>
+                <option value="EVENING">저녁 (18시~24시)</option>
+                <option value="NIGHT">야간 (00시~06시)</option>
+            </select>
+            <button onclick="updateDashboard()">분석하기</button>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>평균 소음</h3>
+                <div class="value" id="meanValue">- dBA</div>
+            </div>
+            <div class="stat-card">
+                <h3>표준편차</h3>
+                <div class="value" id="stdValue">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>고소음 발생 비율 (≥65dBA)</h3>
+                <div class="value" id="ratioValue">-%</div>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <canvas id="noiseChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let rawData = [];
+        let chartInstance = null;
+
+        // CSV 파일 로드 (전처리된 sdot_noise_summary.csv 파일 읽기)
+        Papa.parse('sdot_noise_summary.csv', {
+            download: true,
+            header: true,
+            dynamicTyping: true,
+            complete: function(results) {
+                rawData = results.data.filter(row => row.NOISE != null);
+                initDistrictOptions();
+                updateDashboard();
+            }
+        });
+
+        function initDistrictOptions() {
+            const districts = [...new Set(rawData.map(r => r.AUTONOMOUS_DISTRICT || r.GU))].filter(Boolean);
+            const select = document.getElementById('districtFilter');
+            districts.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.textContent = d;
+                select.appendChild(opt);
+            });
+        }
+
+        function updateDashboard() {
+            const district = document.getElementById('districtFilter').value;
+            const timeRange = document.getElementById('timeFilter').value;
+
+            let filtered = rawData;
+
+            if (district !== 'ALL') {
+                filtered = filtered.filter(r => (r.AUTONOMOUS_DISTRICT || r.GU) === district);
+            }
+
+            // 데이터 계산 (평균, 표준편차, 조건부 확률/비율)
+            const noiseValues = filtered.map(r => Number(r.NOISE)).filter(n => !isNaN(n));
+            if (noiseValues.length === 0) return;
+
+            const mean = noiseValues.reduce((a, b) => a + b, 0) / noiseValues.length;
+            const variance = noiseValues.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / noiseValues.length;
+            const stdDev = Math.sqrt(variance);
+            const highNoiseCount = noiseValues.filter(v => v >= 65).length;
+            const highNoiseRatio = ((highNoiseCount / noiseValues.length) * 100).toFixed(1);
+
+            document.getElementById('meanValue').textContent = `${mean.toFixed(1)} dBA`;
+            document.getElementById('stdValue').textContent = `${stdDev.toFixed(1)}`;
+            document.getElementById('ratioValue').textContent = `${highNoiseRatio}%`;
+
+            renderChart([mean - stdDev, mean, mean + stdDev]);
+        }
+
+        function renderChart(statsData) {
+            const ctx = document.getElementById('noiseChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['평균 - 표준편차', '평균 소음(dBA)', '평균 + 표준편차'],
+                    datasets: [{
+                        label: '소음 통계 범위',
+                        data: statsData,
+                        backgroundColor: ['#93c5fd', '#2563eb', '#1d4ed8']
+                    }]
+                },
+                options: { responsive: true, scales: { y: { beginAtZero: true } } }
+            });
+        }
+    </script>
+</body>
+</html>
