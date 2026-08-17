@@ -1,133 +1,746 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>서울은 언제 가장 시끄러울까? | S-DoT 소음 분석 대시보드</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
-    <style>
-        body { font-family: 'Pretendard', sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 1000px; margin: 0 auto; }
-        h1 { text-align: center; color: #1e293b; }
-        .filter-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; gap: 15px; justify-content: center; }
-        select, button { padding: 10px 15px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .stat-card { background: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .stat-card h3 { margin: 0 0 10px 0; font-size: 14px; color: #64748b; }
-        .stat-card .value { font-size: 24px; font-weight: bold; color: #2563eb; }
-        .chart-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>서울은 언제 가장 시끄러울까?</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Arial,"Noto Sans KR",sans-serif;
+  background:#f5f7fb;
+  color:#20242c;
+}
+header{
+  background:linear-gradient(135deg,#182848,#4b6cb7);
+  color:white;
+  padding:55px 20px;
+}
+.wrap{max-width:1200px;margin:auto;padding:0 20px}
+header h1{font-size:40px;margin:0 0 12px}
+header p{margin:0;opacity:.9;font-size:16px}
+section{margin-top:30px}
+.card{
+  background:white;
+  border-radius:18px;
+  padding:24px;
+  margin-bottom:20px;
+  box-shadow:0 5px 20px rgba(0,0,0,.06)
+}
+.filters{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:15px
+}
+label{display:block;font-size:13px;font-weight:bold;margin-bottom:7px}
+select{
+  width:100%;
+  padding:11px;
+  border:1px solid #d7dce5;
+  border-radius:9px;
+  background:white
+}
+button{
+  border:0;
+  border-radius:9px;
+  padding:11px 18px;
+  background:#3455a4;
+  color:white;
+  font-weight:bold;
+  cursor:pointer
+}
+button:hover{opacity:.9}
+.stats{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:14px
+}
+.stat{
+  background:#f7f9fd;
+  padding:18px;
+  border-radius:14px
+}
+.stat .name{font-size:13px;color:#6d7481}
+.stat .value{font-size:26px;font-weight:800;margin-top:7px}
+.grid2{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px
+}
+.chartbox{height:390px;position:relative}
+.answer{
+  background:#eef3ff;
+  border-radius:14px;
+  padding:20px;
+  line-height:1.7
+}
+.answer strong{font-size:23px}
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:14px
+}
+th,td{
+  padding:10px;
+  border-bottom:1px solid #e9ecf1;
+  text-align:center
+}
+th{background:#f7f9fd}
+#map{height:500px;border-radius:14px}
+.note{font-size:14px;color:#4a5568;line-height:1.8}
+.loading{
+  background:#eef3ff;
+  color:#3455a4;
+  padding:14px;
+  border-radius:10px;
+  margin-top:20px
+}
+.badge{
+  display:inline-block;
+  padding:5px 9px;
+  border-radius:999px;
+  background:#edf1f8;
+  font-size:12px;
+  margin-right:5px
+}
+footer{
+  margin-top:50px;
+  padding:35px 20px;
+  background:#20242c;
+  color:#cdd2dc;
+  text-align:center;
+  font-size:13px
+}
+@media(max-width:800px){
+  header h1{font-size:30px}
+  .grid2{grid-template-columns:1fr}
+}
+</style>
 </head>
+
 <body>
-    <div class="container">
-        <h1>🔊 서울시 생활소음 통계 분석 대시보드</h1>
-        
-        <div class="filter-card">
-            <select id="districtFilter">
-                <option value="ALL">전체 자치구</option>
-            </select>
-            <select id="timeFilter">
-                <option value="ALL">전체 시간대</option>
-                <option value="MORNING">아침 (06시~12시)</option>
-                <option value="AFTERNOON">낮 (12시~18시)</option>
-                <option value="EVENING">저녁 (18시~24시)</option>
-                <option value="NIGHT">야간 (00시~06시)</option>
-            </select>
-            <button onclick="updateDashboard()">분석하기</button>
+
+<header>
+  <div class="wrap">
+    <h1>🔊 서울은 언제 가장 시끄러울까?</h1>
+    <p>S-DoT 데이터를 활용한 시간·지역별 생활소음의 통계적 분석</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div id="loading" class="loading">데이터를 불러오는 중입니다...</div>
+
+  <section>
+    <div class="card">
+      <h2>🎯 탐구 질문</h2>
+      <p>서울의 생활소음은 시간대와 지역에 따라 어떤 차이를 보이는가?</p>
+      <span class="badge">평균</span>
+      <span class="badge">표준편차</span>
+      <span class="badge">상대도수</span>
+      <span class="badge">조건부확률</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>🔎 조건 선택</h2>
+
+      <div class="filters">
+        <div>
+          <label>지역 유형</label>
+          <select id="area">
+            <option value="전체">전체 지역</option>
+          </select>
         </div>
 
-        <div class="stats-grid">
-            <div class="stat-card">
-                <h3>평균 소음</h3>
-                <div class="value" id="meanValue">- dBA</div>
-            </div>
-            <div class="stat-card">
-                <h3>표준편차</h3>
-                <div class="value" id="stdValue">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>고소음 발생 비율 (≥65dBA)</h3>
-                <div class="value" id="ratioValue">-%</div>
-            </div>
+        <div>
+          <label>자치구</label>
+          <select id="district">
+            <option value="전체">전체 자치구</option>
+          </select>
         </div>
 
-        <div class="chart-card">
-            <canvas id="noiseChart"></canvas>
+        <div>
+          <label>시간대</label>
+          <select id="period">
+            <option value="전체">하루 전체</option>
+            <option value="새벽">새벽 (00~05시)</option>
+            <option value="출근">출근 (06~09시)</option>
+            <option value="낮">낮 (10~16시)</option>
+            <option value="퇴근">퇴근 (17~20시)</option>
+            <option value="밤">밤 (21~23시)</option>
+          </select>
         </div>
+
+        <div>
+          <label>높은 소음 기준</label>
+          <select id="threshold">
+            <option value="60">60 dB 이상</option>
+            <option value="65">65 dB 이상</option>
+            <option value="70">70 dB 이상</option>
+          </select>
+        </div>
+      </div>
+
+      <br>
+      <button onclick="resetFilters()">선택 초기화</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>📊 선택 조건의 통계</h2>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="name">분석된 측정값</div>
+        <div class="value" id="count">-</div>
+      </div>
+      <div class="stat">
+        <div class="name">평균 소음</div>
+        <div class="value" id="mean">-</div>
+      </div>
+      <div class="stat">
+        <div class="name">표준편차</div>
+        <div class="value" id="std">-</div>
+      </div>
+      <div class="stat">
+        <div class="name">높은 소음 발생 비율</div>
+        <div class="value" id="highRate">-</div>
+      </div>
+      <div class="stat">
+        <div class="name">최고 측정 소음</div>
+        <div class="value" id="max">-</div>
+      </div>
+      <div class="stat">
+        <div class="name">최저 측정 소음</div>
+        <div class="value" id="min">-</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card answer">
+      <div>🔊 현재 선택에서 가장 시끄러운 시간</div>
+      <strong id="loudestHour">-</strong>
+      <p id="loudestText">지역과 자치구 조건을 기준으로 24시간 평균을 비교합니다.</p>
+    </div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <h2>🕐 시간대별 평균 소음</h2>
+      <div class="chartbox">
+        <canvas id="hourChart"></canvas>
+      </div>
     </div>
 
-    <script>
-        let rawData = [];
-        let chartInstance = null;
+    <div class="card">
+      <h2>📈 시간대별 높은 소음 비율</h2>
+      <div class="chartbox">
+        <canvas id="rateChart"></canvas>
+      </div>
+    </div>
+  </section>
 
-        // CSV 파일 로드 (전처리된 sdot_noise_summary.csv 파일 읽기)
-        Papa.parse('sdot_noise_summary.csv', {
-            download: true,
-            header: true,
-            dynamicTyping: true,
-            complete: function(results) {
-                rawData = results.data.filter(row => row.NOISE != null);
-                initDistrictOptions();
-                updateDashboard();
-            }
-        });
+  <section class="grid2">
+    <div class="card">
+      <h2>🏙️ 지역 유형별 평균 소음</h2>
+      <div class="chartbox">
+        <canvas id="areaChart"></canvas>
+      </div>
+    </div>
 
-        function initDistrictOptions() {
-            const districts = [...new Set(rawData.map(r => r.AUTONOMOUS_DISTRICT || r.GU))].filter(Boolean);
-            const select = document.getElementById('districtFilter');
-            districts.forEach(d => {
-                const opt = document.createElement('option');
-                opt.value = d;
-                opt.textContent = d;
-                select.appendChild(opt);
-            });
-        }
+    <div class="card">
+      <h2>📍 자치구별 평균 소음</h2>
+      <div class="chartbox">
+        <canvas id="districtChart"></canvas>
+      </div>
+    </div>
+  </section>
 
-        function updateDashboard() {
-            const district = document.getElementById('districtFilter').value;
-            const timeRange = document.getElementById('timeFilter').value;
+  <section>
+    <div class="card">
+      <h2>🥇 가장 시끄러운 시간 TOP 5</h2>
+      <table>
+        <thead>
+          <tr><th>순위</th><th>시간</th><th>평균 소음</th><th>높은 소음 비율</th></tr>
+        </thead>
+        <tbody id="top5"></tbody>
+      </table>
+    </div>
+  </section>
 
-            let filtered = rawData;
+  <section>
+    <div class="card">
+      <h2>🗺️ S-DoT 센서 위치</h2>
+      <div id="map"></div>
+      <p class="note">
+        설치 위치정보 파일에서 위도·경도만 추려 표시합니다.
+        지도는 OpenStreetMap을 사용합니다.
+      </p>
+    </div>
+  </section>
 
-            if (district !== 'ALL') {
-                filtered = filtered.filter(r => (r.AUTONOMOUS_DISTRICT || r.GU) === district);
-            }
+  <section>
+    <div class="card">
+      <h2>📚 쉬운 통계 분석 방법 안내</h2>
+      <p class="note">
+        • <strong>데이터 축약 방식:</strong> 대용량 S-DoT 파일의 웹 로딩 속도를 올리기 위해 필수 정보(날짜·시간·지역유형·자치구) 단위로 대표 소음 데이터를 요약하여 활용합니다.<br>
+        • <strong>평균 소음:</strong> 해당 조건에서 측정된 전체 소음 수치를 합산하여 나눈 <strong>산술평균</strong>값입니다.<br>
+        • <strong>표준편차:</strong> 소음 수치가 평균 주변에 얼마나 고르게 모여있는지 보여줍니다. 수치가 크면 소음 변화 폭(기복)이 심하다는 뜻입니다.<br>
+        • <strong>높은 소음 발생 비율:</strong> 전체 측정 횟수 중 사용자가 설정한 기준(60/65/70dB) 이상을 기록한 횟수의 비율(<strong>상대도수 및 조건부확률</strong>)을 의미합니다.
+      </p>
+    </div>
+  </section>
 
-            // 데이터 계산 (평균, 표준편차, 조건부 확률/비율)
-            const noiseValues = filtered.map(r => Number(r.NOISE)).filter(n => !isNaN(n));
-            if (noiseValues.length === 0) return;
+</main>
 
-            const mean = noiseValues.reduce((a, b) => a + b, 0) / noiseValues.length;
-            const variance = noiseValues.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / noiseValues.length;
-            const stdDev = Math.sqrt(variance);
-            const highNoiseCount = noiseValues.filter(v => v >= 65).length;
-            const highNoiseRatio = ((highNoiseCount / noiseValues.length) * 100).toFixed(1);
+<footer>
+  「서울은 언제 가장 시끄러울까?」<br>
+  S-DoT 데이터 기반 확률과 통계 탐구 프로젝트
+</footer>
 
-            document.getElementById('meanValue').textContent = `${mean.toFixed(1)} dBA`;
-            document.getElementById('stdValue').textContent = `${stdDev.toFixed(1)}`;
-            document.getElementById('ratioValue').textContent = `${highNoiseRatio}%`;
+<script>
+const DATA_FILE = "S-DoT_소음_분석용_축약.csv";
+const LOCATION_FILE = "S-DoT_센서위치_축약.csv";
 
-            renderChart([mean - stdDev, mean, mean + stdDev]);
-        }
+// 영문 지역 카테고리를 한국어로 자동 변환하는 매핑 테이블
+const AREA_MAP = {
+  "main_street": "주요도로",
+  "roads_and_parks": "도로·공원",
+  "parks": "공원",
+  "residential_areas": "주거지역",
+  "commercial_areas": "상업지역",
+  "industrial_areas": "공업지역",
+  "traditional_markets": "전통시장"
+};
 
-        function renderChart(statsData) {
-            const ctx = document.getElementById('noiseChart').getContext('2d');
-            if (chartInstance) chartInstance.destroy();
+function translateArea(areaStr) {
+  if (!areaStr) return "기타";
+  const trimmed = String(areaStr).trim();
+  return AREA_MAP[trimmed] || trimmed;
+}
 
-            chartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['평균 - 표준편차', '평균 소음(dBA)', '평균 + 표준편차'],
-                    datasets: [{
-                        label: '소음 통계 범위',
-                        data: statsData,
-                        backgroundColor: ['#93c5fd', '#2563eb', '#1d4ed8']
-                    }]
-                },
-                options: { responsive: true, scales: { y: { beginAtZero: true } } }
-            });
-        }
-    </script>
+let data = [];
+let locations = [];
+let hourChart, rateChart, areaChart, districtChart;
+let map;
+let markers = [];
+
+const PERIODS = {
+  "새벽": [0,5],
+  "출근": [6,9],
+  "낮": [10,16],
+  "퇴근": [17,20],
+  "밤": [21,23]
+};
+
+function num(v){
+  const x = Number(v);
+  return Number.isFinite(x) ? x : 0;
+}
+
+function csvToRows(text){
+  const rows = [];
+  let row = [], cell = "", quote = false;
+
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+
+    if(c === '"'){
+      if(quote && text[i+1] === '"'){
+        cell += '"';
+        i++;
+      }else{
+        quote = !quote;
+      }
+    }else if(c === "," && !quote){
+      row.push(cell);
+      cell = "";
+    }else if((c === "\n" || c === "\r") && !quote){
+      if(c === "\r" && text[i+1] === "\n") i++;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    }else{
+      cell += c;
+    }
+  }
+
+  if(cell !== "" || row.length){
+    row.push(cell);
+    rows.push(row);
+  }
+
+  const header = rows.shift();
+  return rows.filter(r => r.length > 1).map(r => {
+    const obj = {};
+    header.forEach((h,i) => obj[h] = r[i] ?? "");
+    return obj;
+  });
+}
+
+async function loadCSV(file){
+  const res = await fetch(file);
+  if(!res.ok) throw new Error(file + " 파일을 찾을 수 없습니다.");
+  const buffer = await res.arrayBuffer();
+  const text = new TextDecoder("utf-8").decode(buffer);
+  return csvToRows(text);
+}
+
+function periodMatch(hour, period){
+  if(period === "전체") return true;
+  const [a,b] = PERIODS[period];
+  return hour >= a && hour <= b;
+}
+
+function fillSelect(id, values){
+  const select = document.getElementById(id);
+  values.forEach(v => {
+    const option = document.createElement("option");
+    option.value = v;
+    option.textContent = v;
+    select.appendChild(option);
+  });
+}
+
+function setupFilters(){
+  const areas = [...new Set(data.map(d => d.지역))].sort();
+  const districts = [...new Set(data.map(d => d.자치구))].sort();
+
+  fillSelect("area", areas);
+  fillSelect("district", districts);
+
+  ["area","district","period","threshold"].forEach(id => {
+    document.getElementById(id).addEventListener("change", update);
+  });
+}
+
+function selectedArea(){
+  return document.getElementById("area").value;
+}
+
+function selectedDistrict(){
+  return document.getElementById("district").value;
+}
+
+function selectedPeriod(){
+  return document.getElementById("period").value;
+}
+
+function baseFilter(ignorePeriod=false){
+  const area = selectedArea();
+  const district = selectedDistrict();
+  const period = selectedPeriod();
+
+  return data.filter(d => {
+    if(area !== "전체" && d.지역 !== area) return false;
+    if(district !== "전체" && d.자치구 !== district) return false;
+    if(!ignorePeriod && !periodMatch(num(d.시간), period)) return false;
+    return true;
+  });
+}
+
+function summarize(rows){
+  if(!rows.length){
+    return {n:0, mean:0, variance:0, std:0, max:0, min:0, high:0};
+  }
+
+  let n = 0;
+  let sum = 0;
+  let sumSq = 0;
+  let high = 0;
+  let max = -Infinity;
+  let min = Infinity;
+
+  rows.forEach(r => {
+    const count = num(r.측정수);
+    const mean = num(r.평균소음);
+    const std = num(r.표준편차);
+
+    n += count;
+    sum += count * mean;
+    sumSq += count * (std * std + mean * mean);
+
+    high += num(r.높은소음수);
+    max = Math.max(max, num(r.최대소음));
+    min = Math.min(min, num(r.최소소음));
+  });
+
+  const mean = n ? sum/n : 0;
+  const variance = n ? Math.max(0, sumSq/n - mean*mean) : 0;
+
+  return {
+    n,
+    mean,
+    variance,
+    std: Math.sqrt(variance),
+    max: max === -Infinity ? 0 : max,
+    min: min === Infinity ? 0 : min,
+    high
+  };
+}
+
+function formatNumber(x){
+  return Number(x).toLocaleString("ko-KR");
+}
+
+function updateStats(rows){
+  const s = summarize(rows);
+
+  document.getElementById("count").textContent = formatNumber(s.n);
+  document.getElementById("mean").textContent = s.mean.toFixed(2) + " dB";
+  document.getElementById("std").textContent = s.std.toFixed(2) + " dB";
+  document.getElementById("highRate").textContent =
+    s.n ? (s.high/s.n*100).toFixed(2) + "%" : "-";
+  document.getElementById("max").textContent = s.max.toFixed(1) + " dB";
+  document.getElementById("min").textContent = s.min.toFixed(1) + " dB";
+}
+
+function groupByHour(rows){
+  const result = [];
+
+  for(let h=0;h<24;h++){
+    const part = rows.filter(r => num(r.시간) === h);
+    const s = summarize(part);
+
+    result.push({
+      hour:h,
+      mean:s.mean,
+      highRate:s.n ? s.high/s.n*100 : 0,
+      n:s.n
+    });
+  }
+  return result;
+}
+
+function groupBy(rows, key){
+  const map = new Map();
+
+  rows.forEach(r => {
+    if(!map.has(r[key])) map.set(r[key], []);
+    map.get(r[key]).push(r);
+  });
+
+  return [...map.entries()].map(([name,rs]) => {
+    const s = summarize(rs);
+    return {name, mean:s.mean, n:s.n};
+  }).sort((a,b)=>b.mean-a.mean);
+}
+
+function drawHourCharts(rows){
+  const groups = groupByHour(rows);
+  const labels = groups.map(g => String(g.hour).padStart(2,"0")+"시");
+
+  if(hourChart) hourChart.destroy();
+  hourChart = new Chart(document.getElementById("hourChart"),{
+    type:"line",
+    data:{
+      labels,
+      datasets:[{
+        label:"평균 소음(dB)",
+        data:groups.map(g=>Number(g.mean.toFixed(2))),
+        tension:.25,
+        borderWidth:3,
+        pointRadius:3
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{y:{title:{display:true,text:"dB"}}}
+    }
+  });
+
+  if(rateChart) rateChart.destroy();
+  rateChart = new Chart(document.getElementById("rateChart"),{
+    type:"bar",
+    data:{
+      labels,
+      datasets:[{
+        label:"높은 소음 발생 비율(%)",
+        data:groups.map(g=>Number(g.highRate.toFixed(2))),
+        borderRadius:6
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{y:{
+        beginAtZero:true,
+        title:{display:true,text:"비율(%)"}
+      }}
+    }
+  });
+
+  const valid = groups.filter(g => g.n > 0).sort((a,b)=>b.mean-a.mean);
+  const top5 = valid.slice(0,5);
+
+  document.getElementById("top5").innerHTML =
+    top5.map((g,i)=>`
+      <tr>
+        <td>${i+1}</td>
+        <td>${String(g.hour).padStart(2,"0")}시</td>
+        <td>${g.mean.toFixed(2)} dB</td>
+        <td>${g.highRate.toFixed(2)}%</td>
+      </tr>
+    `).join("");
+
+  if(top5.length){
+    document.getElementById("loudestHour").textContent =
+      String(top5[0].hour).padStart(2,"0") + "시";
+    document.getElementById("loudestText").textContent =
+      `선택한 지역·자치구에서 평균 ${top5[0].mean.toFixed(2)} dB로 가장 높게 나타났습니다.`;
+  }else{
+    document.getElementById("loudestHour").textContent = "-";
+    document.getElementById("loudestText").textContent = "조건에 맞는 데이터가 없습니다.";
+  }
+}
+
+function drawAreaChart(rows){
+  const groups = groupBy(rows,"지역");
+
+  if(areaChart) areaChart.destroy();
+
+  areaChart = new Chart(document.getElementById("areaChart"),{
+    type:"bar",
+    data:{
+      labels:groups.map(g=>g.name),
+      datasets:[{
+        label:"평균 소음(dB)",
+        data:groups.map(g=>Number(g.mean.toFixed(2))),
+        borderRadius:6
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{y:{title:{display:true,text:"dB"}}}
+    }
+  });
+}
+
+function drawDistrictChart(rows){
+  const groups = groupBy(rows,"자치구").slice(0,15);
+
+  if(districtChart) districtChart.destroy();
+
+  districtChart = new Chart(document.getElementById("districtChart"),{
+    type:"bar",
+    data:{
+      labels:groups.map(g=>g.name),
+      datasets:[{
+        label:"평균 소음(dB)",
+        data:groups.map(g=>Number(g.mean.toFixed(2))),
+        borderRadius:5
+      }]
+    },
+    options:{
+      indexAxis:"y",
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{title:{display:true,text:"dB"}}}
+    }
+  });
+}
+
+function initMap(){
+  map = L.map("map").setView([37.5665,126.9780],11);
+
+  L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {attribution:"© OpenStreetMap contributors"}
+  ).addTo(map);
+
+  drawMarkers();
+}
+
+function drawMarkers(){
+  if(!map) return;
+
+  markers.forEach(m=>map.removeLayer(m));
+  markers=[];
+
+  const district = selectedDistrict();
+
+  locations.forEach(loc=>{
+    if(district !== "전체" && !String(loc.주소).includes(district)) return;
+
+    const marker = L.circleMarker(
+      [num(loc.위도),num(loc.경도)],
+      {radius:4,fillOpacity:.65}
+    ).bindPopup(
+      `<strong>S-DoT 센서</strong><br>${loc.주소}`
+    );
+
+    marker.addTo(map);
+    markers.push(marker);
+  });
+}
+
+function update(){
+  const selectedRows = baseFilter(false);
+
+  updateStats(selectedRows);
+
+  const trendRows = baseFilter(true);
+
+  drawHourCharts(trendRows);
+  drawAreaChart(selectedRows.length ? selectedRows : trendRows);
+  drawDistrictChart(selectedRows.length ? selectedRows : trendRows);
+  drawMarkers();
+}
+
+function resetFilters(){
+  document.getElementById("area").value="전체";
+  document.getElementById("district").value="전체";
+  document.getElementById("period").value="전체";
+  document.getElementById("threshold").value="60";
+  update();
+}
+
+async function start(){
+  try{
+    document.getElementById("loading").textContent =
+      "소음 분석 데이터를 불러오는 중...";
+
+    const rawData = await loadCSV(DATA_FILE);
+    
+    // 데이터 로드 시 영문 지역명을 한국어로 한 번에 매핑 변환
+    data = rawData.map(r => ({
+      ...r,
+      지역: translateArea(r.지역)
+    }));
+
+    document.getElementById("loading").textContent =
+      "센서 위치 데이터를 불러오는 중...";
+
+    locations = await loadCSV(LOCATION_FILE);
+
+    setupFilters();
+    initMap();
+    update();
+
+    document.getElementById("loading").style.display="none";
+  }catch(error){
+    console.error(error);
+    document.getElementById("loading").textContent =
+      "데이터를 불러오지 못했습니다. index.html과 CSV 파일이 같은 폴더에 있는지 확인하세요.";
+  }
+}
+
+start();
+</script>
+
 </body>
 </html>
